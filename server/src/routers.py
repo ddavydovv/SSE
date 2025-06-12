@@ -1,5 +1,3 @@
-from sys import prefix
-
 from fastapi import Request, BackgroundTasks, HTTPException, APIRouter
 from fastapi.responses import StreamingResponse
 import uuid
