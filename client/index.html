@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FastAPI SSE Demo with Vue</title>
+  <script src="https://unpkg.com/vue@3"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .progress-container { margin-top: 20px; }
+    .progress-bar {
+      width: 100%;
+      background-color: #f3f3f3;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar-inner {
+      height: 24px;
+      width: 0;
+      background-color: #42b983;
+      transition: width 0.3s ease;
+    }
+    .result { margin-top: 20px; font-weight: bold; }
+    button { padding: 8px 16px; background-color: #42b983; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:disabled { background-color: #ccc; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>FastAPI SSE Demo</h1>
+    <button @click="startTask" :disabled="running">Start Algorithm</button>
+
+    <div class="progress-container" v-if="running">
+      <p>Progress: {{ progress }}%</p>
+      <div class="progress-bar">
+        <div class="progress-bar-inner" :style="{ width: progress + '%' }"></div>
+      </div>
+    </div>
+
+    <div class="result" v-if="result">
+      <p>Task completed!</p>
+      <pre>{{ result }}</pre>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+    const apiBase = '${API_BASE}';
+
+    createApp({
+      data() {
+        return {
+          taskId: localStorage.getItem('taskId') || null,
+          progress: 0,
+          result: null,
+          running: false,
+          eventSource: null,
+        };
+      },
+      methods: {
+        async startTask() {
+          // Если задача завершена, сбрасываем состояние
+          if (this.taskId && !this.running) {
+            this.taskId = null;
+            this.result = null;
+            this.progress = 0;
+            localStorage.removeItem('taskId');
+          }
+
+          // Если задача уже запущена — не дублируем
+          if (this.taskId) return;
+
+          this.running = true;
+          this.progress = 0;
+          this.result = null;
+
+          // Запрос к API
+          const response = await fetch(`${apiBase}/api/v1/start-algorithm`, { method: 'POST' });
+          const data = await response.json();
+          this.taskId = data.task_id;
+          localStorage.setItem('taskId', this.taskId);
+
+          this.subscribeSSE();
+        },
+        subscribeSSE() {
+          if (!this.taskId) return;
+
+          this.running = true;
+          this.eventSource = new EventSource(`${apiBase}/api/v1/progress/${this.taskId}`);
+
+          this.eventSource.onmessage = (e) => {
+            const payload = JSON.parse(e.data);
+            this.progress = payload.progress;
+
+            if (payload.result) {
+              this.result = payload.result;
+              this.cleanup();
+            }
+          };
+
+          this.eventSource.onerror = (err) => {
+            console.error('SSE error', err);
+            this.eventSource.close();
+            this.running = false;
+          };
+        },
+        cleanup() {
+          if (this.eventSource) this.eventSource.close();
+          this.running = false;
+          localStorage.removeItem('taskId');
+          this.taskId = null;
+        }
+      },
+      mounted() {
+        // При загрузке страницы — проверка и восстановление прогресса
+        if (this.taskId) {
+          this.subscribeSSE();
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
