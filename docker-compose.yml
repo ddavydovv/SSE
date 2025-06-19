@@ -3,7 +3,7 @@ volumes:
 
 services:
   server:
-    build: ./server/
+    build: app/server/
     volumes:
       - server:/main/app
     env_file:
@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
 
   client:
-    build: ./client/
+    build: app/client/
     ports:
       - '8080:80'
     environment:
