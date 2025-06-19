@@ -1,15 +1,18 @@
+volumes:
+  server:
+
 services:
   server:
     build: ./server/
     volumes:
-      - ./server/main:/main/app
+      - server:/main/app
     env_file:
       - .env
     ports:
       - "8000:8000"
     restart: unless-stopped
 
-  frontend:
+  client:
     build: ./client/
     ports:
       - '8080:80'
